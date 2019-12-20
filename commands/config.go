@@ -67,17 +67,79 @@ func init() {
 }
 
 func getValue(path []string, obj interface{}) (interface{}, bool) {
+	var val reflect.Value
 	r := reflect.ValueOf(obj)
-	val := r.FieldByName(path[0])
+	if r.Kind() == reflect.Struct {
+		val = r.FieldByName(path[0])
+	} else {
+		val = r
+	}
 
 	if val.Kind() == reflect.Invalid {
 		return nil, false
 	}
 
 	if len(path) == 1 {
+		if val.Kind() == reflect.Ptr {
+			return getValue(path, val.Elem().Interface())
+		} else if val.Kind() == reflect.Map {
+			mapData, ok := val.Interface().(map[string]interface{})
+			if !ok {
+				// We're not supporting nested maps by now
+				// For example map[string]map[string]map[string]int
+				return nil, false
+			}
+			r := mapData[path[0]]
+			if r == nil {
+				return nil, false
+			}
+			return r, true
+		}
 		return val.Interface(), true
 	} else if val.Kind() == reflect.Struct {
 		return getValue(path[1:], val.Interface())
+	} else if val.Kind() == reflect.Map {
+		// This logical branch checks for the special PlugginsSettings
+		// where we have map[string]*PluginState and map[string]map[string]interface{}
+		// and the plugin id could be a composed one like "com.mattermost.pluginid"
+		if val.Type().Elem().Kind() == reflect.Ptr {
+			mapData := val.Interface().(map[string]*model.PluginState)
+			remainingPath := strings.Join(path[1:], ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix)+1:]) == 0 {
+						return mapData[k], true
+					}
+					return getValue(path[len(prefix)+1:], mapData[k])
+				}
+			}
+		} else if val.Type().Elem().Kind() == reflect.Map {
+			mapData := val.Interface().(map[string]map[string]interface{})
+			remainingPath := strings.Join(path[1:], ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix)+1:]) == 0 {
+						return mapData[k], true
+					}
+					return getValue(path[len(prefix)+1:], mapData[k])
+				}
+			}
+		} else if val.Type().Elem().Kind() == reflect.Interface {
+			mapData := val.Interface().(map[string]interface{})
+			remainingPath := strings.Join(path, ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix):]) == 0 {
+						return mapData[k], true
+					}
+					return getValue(path[len(prefix):], mapData[k])
+				}
+			}
+		}
+		return nil, false
 	} else {
 		return nil, false
 	}

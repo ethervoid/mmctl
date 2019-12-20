@@ -22,7 +22,7 @@ func (s *MmctlUnitTestSuite) TestConfigGetCmd() {
 		err := configGetCmdF(s.client, &cobra.Command{}, args)
 		s.Require().Nil(err)
 		s.Require().Len(printer.GetLines(), 1)
-		s.Require().Equal(*(printer.GetLines()[0].(*string)), "mysql")
+		s.Require().Equal(printer.GetLines()[0].(string), "mysql")
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
 
@@ -41,7 +41,7 @@ func (s *MmctlUnitTestSuite) TestConfigGetCmd() {
 		err := configGetCmdF(s.client, &cobra.Command{}, args)
 		s.Require().Nil(err)
 		s.Require().Len(printer.GetLines(), 1)
-		s.Require().Equal(*(printer.GetLines()[0].(*int)), 20)
+		s.Require().Equal(printer.GetLines()[0].(int), 20)
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
 
@@ -60,7 +60,7 @@ func (s *MmctlUnitTestSuite) TestConfigGetCmd() {
 		err := configGetCmdF(s.client, &cobra.Command{}, args)
 		s.Require().Nil(err)
 		s.Require().Len(printer.GetLines(), 1)
-		s.Require().Equal(*(printer.GetLines()[0].(*bool)), false)
+		s.Require().Equal(printer.GetLines()[0].(bool), false)
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
 
@@ -104,6 +104,236 @@ func (s *MmctlUnitTestSuite) TestConfigGetCmd() {
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
 
+	s.Run("Get value if the key is composed and the setting type is map[string]*PluginState", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.com.mattermost.testplugin"}
+		outputConfig := &model.Config{}
+		pluginState := &model.PluginState{Enable: true}
+		outputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": pluginState,
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal(printer.GetLines()[0], pluginState)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get field value if the key is composed and the type is map[string]*PluginState", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.com.mattermost.testplugin.Enable"}
+		outputConfig := &model.Config{}
+		pluginState := &model.PluginState{Enable: true}
+		outputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": pluginState,
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal(printer.GetLines()[0], true)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get field value if the key is non composed and the type is map[string]*PluginState", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.non-composed.Enable"}
+		outputConfig := &model.Config{}
+		pluginState := &model.PluginState{Enable: true}
+		outputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"non-composed": pluginState,
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal(printer.GetLines()[0], true)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get error if the key is composed, doesn't exist and the type is map[string]*PluginState", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.com.mattermost.testplugin.wrongkey"}
+		outputConfig := &model.Config{}
+		pluginState := &model.PluginState{Enable: true}
+		outputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": pluginState,
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().NotNil(err)
+		s.Require().Equal("Invalid key", err.Error())
+		s.Require().Len(printer.GetLines(), 0)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get error if the key is non composed, doesn't exist and the type is map[string]*PluginState", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.non-composed.wrongkey"}
+		outputConfig := &model.Config{}
+		pluginState := &model.PluginState{Enable: true}
+		outputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": pluginState,
+			"non-composed":              pluginState,
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().NotNil(err)
+		s.Require().Equal("Invalid key", err.Error())
+		s.Require().Len(printer.GetLines(), 0)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get struct value if the key is composed and the type is map[string]map[string]interface{}", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.Plugins.com.mattermost.testplugin"}
+		pluginsSettings := map[string]map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"] = map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"]["testfield"] = true
+		pluginsSettings["com.mattermost.testplugin"]["otherfield"] = "string test"
+		outputConfig := &model.Config{}
+		outputConfig.PluginSettings.Plugins = pluginsSettings
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal(map[string]interface{}{"testfield": true, "otherfield": "string test"}, printer.GetLines()[0])
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get field value if the key is composed and the type is map[string]map[string]interface{}", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.Plugins.com.mattermost.testplugin.otherfield"}
+		pluginsSettings := map[string]map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"] = map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"]["testfield"] = true
+		pluginsSettings["com.mattermost.testplugin"]["otherfield"] = "string test"
+		pluginsSettings["non-composed"] = map[string]interface{}{}
+		pluginsSettings["non-composed"]["field"] = map[string]interface{}{}
+		outputConfig := &model.Config{}
+		outputConfig.PluginSettings.Plugins = pluginsSettings
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal("string test", printer.GetLines()[0])
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get field value if the key is not composed and the type is map[string]map[string]interface{}", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.Plugins.non-composed.field"}
+		pluginsSettings := map[string]map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"] = map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"]["testfield"] = true
+		pluginsSettings["com.mattermost.testplugin"]["otherfield"] = "string test"
+		pluginsSettings["non-composed"] = map[string]interface{}{}
+		pluginsSettings["non-composed"]["field"] = "string test"
+		outputConfig := &model.Config{}
+		outputConfig.PluginSettings.Plugins = pluginsSettings
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal("string test", printer.GetLines()[0])
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get error if the key is composed, doesn't exist and the type is map[string]map[string]interface{}", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.Plugins.com.mattermost.testplugin.invalidkey"}
+		pluginsSettings := map[string]map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"] = map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"]["testfield"] = true
+		pluginsSettings["com.mattermost.testplugin"]["otherfield"] = "string test"
+		outputConfig := &model.Config{}
+		outputConfig.PluginSettings.Plugins = pluginsSettings
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().NotNil(err)
+		s.Require().Equal("Invalid key", err.Error())
+		s.Require().Len(printer.GetLines(), 0)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
+	s.Run("Get error if the key is composed, doesn't exist and the type is map[string]map[string]interface{}", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.Plugins.com.mattermost.wrongplugin.legitkey"}
+		pluginsSettings := map[string]map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"] = map[string]interface{}{}
+		pluginsSettings["com.mattermost.testplugin"]["testfield"] = true
+		pluginsSettings["com.mattermost.testplugin"]["otherfield"] = "string test"
+		outputConfig := &model.Config{}
+		outputConfig.PluginSettings.Plugins = pluginsSettings
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(outputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configGetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().NotNil(err)
+		s.Require().Equal("Invalid key", err.Error())
+		s.Require().Len(printer.GetLines(), 0)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
 	s.Run("Get error if the key doesn't exists", func() {
 		printer.Clean()
 		args := []string{"SqlSettings.WrongKey"}
@@ -120,6 +350,7 @@ func (s *MmctlUnitTestSuite) TestConfigGetCmd() {
 
 		err := configGetCmdF(s.client, &cobra.Command{}, args)
 		s.Require().NotNil(err)
+		s.Require().Equal("Invalid key", err.Error())
 		s.Require().Len(printer.GetLines(), 0)
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
