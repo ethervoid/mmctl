@@ -159,6 +159,46 @@ func setValue(path []string, obj reflect.Value, newValue interface{}) error {
 
 	if len(path) > 1 && val.Kind() == reflect.Struct {
 		return setValue(path[1:], val, newValue)
+	} else if len(path) > 1 && val.Kind() == reflect.Map {
+		if val.Type().Elem().Kind() == reflect.Ptr {
+			mapData := val.Interface().(map[string]*model.PluginState)
+			remainingPath := strings.Join(path[1:], ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix)+1:]) == 1 {
+						return setValue(path[len(prefix)+1:], reflect.ValueOf(*mapData[k]), newValue)
+					}
+					return errors.New("Can't update the whole PlugginState config")
+				}
+			}
+		} else if val.Type().Elem().Kind() == reflect.Map {
+			mapData := val.Interface().(map[string]map[string]interface{})
+			remainingPath := strings.Join(path[1:], ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix)+1:]) == 0 {
+						return errors.New("Can't update the whole Plugins map element")
+					}
+					return setValue(path[len(prefix)+1:], reflect.ValueOf(mapData[k]), newValue)
+				}
+			}
+		} else if val.Type().Elem().Kind() == reflect.Interface {
+			mapData := val.Interface().(map[string]interface{})
+			remainingPath := strings.Join(path, ".")
+			for k := range mapData {
+				if strings.HasPrefix(remainingPath, k) {
+					prefix := strings.Split(k, ".")
+					if len(path[len(prefix):]) == 1 {
+						val.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(newValue))
+						return nil
+					}
+					return errors.New("Can't update the whole Plugins map element")
+				}
+			}
+		}
+		return nil
 	} else if len(path) == 1 {
 		if val.Kind() == reflect.Ptr {
 			return setValue(path, val.Elem(), newValue)

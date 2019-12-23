@@ -488,6 +488,36 @@ func (s *MmctlUnitTestSuite) TestConfigSetCmd() {
 		s.Require().Len(printer.GetErrorLines(), 0)
 	})
 
+	s.Run("Set a field for a composed key for plugin state", func() {
+		printer.Clean()
+		args := []string{"PluginSettings.PluginStates.com.mattermost.testplugin.Enable", "true"}
+		defaultConfig := &model.Config{}
+		defaultConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": &model.PluginState{Enable: true},
+		}
+		inputConfig := &model.Config{}
+		inputConfig.PluginSettings.PluginStates = map[string]*model.PluginState{
+			"com.mattermost.testplugin": &model.PluginState{Enable: false},
+		}
+
+		s.client.
+			EXPECT().
+			GetConfig().
+			Return(defaultConfig, &model.Response{Error: nil}).
+			Times(1)
+		s.client.
+			EXPECT().
+			UpdateConfig(inputConfig).
+			Return(inputConfig, &model.Response{Error: nil}).
+			Times(1)
+
+		err := configSetCmdF(s.client, &cobra.Command{}, args)
+		s.Require().Nil(err)
+		s.Require().Len(printer.GetLines(), 1)
+		s.Require().Equal(printer.GetLines()[0], inputConfig)
+		s.Require().Len(printer.GetErrorLines(), 0)
+	})
+
 	s.Run("Get error if the key doesn't exists", func() {
 		printer.Clean()
 		defaultConfig := &model.Config{}
